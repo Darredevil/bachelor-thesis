@@ -1,0 +1,72 @@
+\chapter{Testing and Evaluation}
+\label{chapter:testing}
+
+The testing and evaluation was conducted using an Ubuntu 16.04 x86_64 system, primarily on 32 bit custom made executables. To test the correctness of the program we feed it an executable for which we know the correct results for the classification and translation step, and cross check that they match.
+
+\section{Testing Approach}
+
+\abbrev{PR}{Pull Request}
+Due to Radare2's volatile nature, with new commits and PRs being merged each day, a solid testing infrastructure is required to assure nothing breaks and functionality is preserved after each new patch.
+
+Radare2 already implements a dedicated separate repository\footnote{\url{https://github.com/radare/radare2-regressions}} for testing, containing a few hundred tests. This repository has been enhanced with my own tests for the ROP payload generation.
+
+\subsection{Unit Testing}
+
+To ensure the correct functionality of the newly introduced modules and features unit tests have been introduced to check the classification and translation features work as expected. For testing a small set of 10-15kb sized executables are used, these are represented by hello-world like programs and other simple ones which cumulative include all types of gadgets.
+
+\subsection{Regression Testing}
+
+During the development of this project there have been situations in which the behavior or functionality of a feature has been disrupted or broken completely by a new patch. To prevent this regression tests have been introduced to check that the gadget classification, translation and payload generation modules maintain functionality with each new patch.
+
+\subsection{System Testing}
+
+For a complete end-to-end check we use a couple of system tests. \labelindexref{Listing}{lst:vulnerability} shows a simple code used for this. The first test compiles the code as is, classifies the gadgets, translates them and attempts to create a ROP payload. The payload generation will fail due to an incomplete set of gadgets.
+
+For the second test we compile the code with the libc statically linked. This guaranties enough gadgets for a Turing Complete instruction set.
+
+\lstset{language=C,caption={Vulnerable Program},label={lst:vulnerability}}
+\begin{lstlisting}[frame=single]
+void vulnerability(char* input) {
+	char buffer[1024];
+	strcpy(buffer, input);
+}
+
+int main(int argc, char** argv) {
+	vulnerability(argv[1]);
+	return 0;
+}
+\end{lstlisting}
+
+\section{Real World Testing}
+
+Testing the project in a real world scenario is imperative since the goal is full integration with a real world reverse engineering framework used in industry, academia and by professionals in their fields.
+
+For evaluating the efficiency of the classification and translation module we inspected the results after running the modules on several executables and thoroughly inspecting each result.
+
+In the first phase of testing a set of 32 bit rudimentary executables\footnote{Hello-Worlds, Simple Number Addition, Branching Examples, Loop Examples etc. All programs from the rudimentary section consist of 50 or less lines of code} were used as input for the modules. Using small executables allowed us to manually inspect these stages. The results show that for the basic x86 instructions the classification and translation work as expected.
+
+The second phase of testing was conducted on executables from the \textit{/bin} directory present on Linux Ubuntu x86_64, among these we can count the \textit{ls, cat, sleep} binaries. Since the executables used in this stage present a more complex design and increased size they normally generate thousands of possible gadgets, thus rendering a manual inspection inefficient and too time consuming to consider. Instead a statistical approach was used, where a number random gadgets from different offsets were extracted from each executable and inspected. This showed that for complex 64 bit binaries there are still some discrepancies and issues to tackle for the classification phase.
+
+The following section presents some of the issues encountered.
+
+\subsection{Encountered Issues}
+\label{sec:issues}
+
+The testing on real world binaries and complex programs with a bigger code base led to the discovery of several issues:
+
+\begin{itemize}
+	\item For binaries which present more than 3000 gadgets the classification phase is not fast enough in its current form, it can take up to a couple of minutes depending on the binary.
+	\item It was discovered that for the x86_64 instruction set ESIL ignores a specific opcode, thus leading to a potential incorrect classification.
+	\item For binaries with more than a few thousand binaries the computing time for the payload generation can grow exponentially based on the length of the payload and the complexity of the end state formula.
+\end{itemize}
+
+These issues are being investigated and will be solved in the near future.
+
+\section{Community Feedback}
+
+Throughout the development of this project I received continuous feedback from the core developers and original author of Radare. They have constantly assisted and aided in the development process and proved to be an invaluable source of information.
+
+I would like to thank Sergi Alvarez, Anton Kochkov and Jeff Crowell for all the help they provided.
+
+The next step will be to gather feedback from the non-developer users of Radare2 and integrate the results in a future patch.
+

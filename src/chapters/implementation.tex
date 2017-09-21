@@ -1,0 +1,112 @@
+\chapter{Implementation Details}
+\label{chapter:implementation}
+
+Taking into account the style of the Radare2 framework, our project is written in pure C. All data structures used are custom defined for each task.
+
+\section{Gadget Classification}
+
+For the classification stage, the sequence of assembly instructions which represent gadgets are translated into the ESIL equivalent and stored as a list. For each type of gadget there is an independent function which checks if the gadget fits that specific type. The generalized algorithm can be seen in \labelindexref{Algorithm}{alg:classify}.
+
+
+\begin{algorithm}[htp]
+	\KwData{Gadget: List of ESIL instructions}
+	\KwResult{Classified Gadget}
+	clone VM state\;
+	\For{each ESIL instruction}{
+		emulate instruction\;
+		inspect VM state\;
+		\If{postcondition == TRUE}{
+			assign gadget type\;
+		}
+	}
+	restore VM state\;
+	\caption{Generic Classification Algorithm}
+	\label{alg:classify}
+\end{algorithm}
+
+The API Hooks present in the ESIL VM are used for checking the constraints and postconditions in order to determine if and how registers, flags or memory were changed.
+
+Each classification function has a different set of constraints and postconditions it checks. For example a NOP (No Operation) gadget is the easiest to classify, we can inspect the information returned by the hooks, if there is none (meaning no changes whatsoever occurred), it is clearly a NOP. However there can be gadgets such as \textit{xchg eax, eax} which will log a register read and write from the API Hooks, but it will still be classified as a NOP since semantically it changes nothing.
+
+\abbrev{MEM}{Memory}
+\abbrev{REG}{Register}
+\abbrev{FLG}{Flag}
+Other patterns, such as StoreMem will first of all check if there was a MEM write, if not all other information is ignored and it jumps to the next pattern for classification.
+
+\section{ESIL to SMTLib2 Parser}
+
+The Parser Module takes the ESIL version of the classified gadgets and generates the SMTLib2 equivalent.
+A generalized algorithm can be seen in \labelindexref{Algorithm}{alg:translate}.
+
+\begin{algorithm}[htp]
+	\KwData{ESIL instruction}
+	\KwResult{SMTLib2 formula}
+	extract_type(instruction)\;
+	operator = type\;
+	oprnd_lst = []\;
+	\For{each operand in instruction}{
+		\eIf{operand == REGISTER}{
+			opr = translate_register(operand)\;
+		}{
+			opr = translate_immediate(operand)\;
+		}
+		oprnd_lst.append(opr)\;
+	}
+	check_constraints(operator, oprnd_list)\;
+	generate_expression(operator, oprnd_lst)\;
+	\caption{Generic Translation Algorithm}
+	\label{alg:translate}
+\end{algorithm}
+
+Each instruction type (add, sub, xor etc.) has a specific functions which handles the translation and constraint checking.
+
+Since modern CPUs use arithmetic over fixed-size bit vectors it seemed only natural to represent the registers as bit vectors for the SMT solver. The SMTLib2 standard supports bit vectors of arbitrary size and provides a large number of functions over them, thus allowing the encoding of all instructions through them.
+
+An example of the transition from assembly to ESIL to SMTLib2 can be see in \labelindexref{Table}{table:parsingExample}.
+
+\begin{table}[htp]
+	\begin{center}
+	\begin{tabular}{lll}
+	\toprule
+	\textbf{x86 Assembly} & \textbf{ESIL instruction} & \textbf{SMTLib2 expression} \\ \midrule
+	xor eax, ebx & ebx, eax, \textasciicircum= & (= eax (bvxor eax ebx) \\ \midrule
+	add esp, 8 & 8, esp, += & (= esp (bvadd esp \#x00000008) \\ \midrule
+	mov ecx, edx & edx, ecx, = & (= edx ecx) \\ \midrule
+	mov eax, 0x80085 & 0x80085, eax, = & (= \#x00080085 eax) \\ \midrule
+	% push edi & 4, esp, -=, edi, esp, =[4] & \shortstack{a \\ b} \\
+	push edi & 4, esp, -=, edi, esp, =[4] & \shortstack[l]{(= esp (bvsub esp \#x00000004)) \\ (= (concat \\ \hspace{1.5cm}(select MEM (bvadd edi \#x00000003)) \\ \hspace{1.5cm}(select MEM (bvadd edi \#x00000002)) \\ \hspace{1.5cm}(select MEM (bvadd edi \#x00000001)) \\ \hspace{1.5cm}(select MEM (bvadd edi \#x00000000))) \\ \hspace{0.5cm}esp)} \\
+	\bottomrule
+	\end{tabular}
+	\caption[Assembly to ESIL to SMTLib2 Translation Example]{
+	Assembly to ESIL to SMTLib2 Translation Example%
+	% \footnote{test}
+	\footnotemark{}
+	}
+	\label{table:parsingExample}
+	\end{center}
+\end{table}
+
+\footnotetext{Note that ESIL instructions also contain a part for flag changes, they were omitted in this example for clarity}
+
+\section{SMT Solver}
+
+Due to the SMTLib2 Parser the user can plug in any SMT Solver which respects the standard, offering the choice and flexibility to change it as he/she sees fit. For the actual SMT Solver we decided to use an open source solver, Z3\footnote{\url{https://github.com/Z3Prover/z3}}.
+
+The SMT Module represents the final step in the payload generation. Based on the end state formula which represents the goal of the attack, the module tries to find a combination of gadgets for which the formula is satisfiable. The first attempt consisted of doing an exhaustive search of all combinations possible of k-length, where k is an arbitrary number.
+
+This approach of trying all combinations of k-length and checking the satisfiability works when applied on small executables with simple constraints. By small we understand an executables which have a number of gadgets between 100-200. These represent hello-world like programs and simple vulnerable programs such as \labelindexref{Listing}{lst:vulnerability}. For simple end state formulas a ${k = 10}$ will be enough. The main issue with this approach is that it has a O(${N^k}$) complexity where N is the number of gadgets. This can get quickly out of hand, for example the \textit{/bin/ls} on Linux Ubuntu x86_64 has aprox. 12500 gadgets, leading to a dramatic increase in computing time. Although this approach is correct and works, it requires long computing times for executables with more than a few hundred gadgets thus making it virtually unusable.
+
+\subsection{Optimizations}
+
+To make the payload generation usable the process needs to be optimized from this initial approach. For this I came up with the following optimizations:
+
+\subsection{Reduced Search Space}
+
+The initial approach used all possible gadgets found by Radare2 without discrimination, this includes gadgets ending in the \textit{call} or \textit{jmp} instruction. A first optimization was to reduce the number of gadgets, thus I decided to use only the gadgets ending in the \textit{ret} instruction. This lead to dramatic decrease of the search space. The \textit{/bin/ls} which initially contained aprox. 12500 general gadgets can be reduced to only 1500 ret-gadgets, leading to an 88\% decrease in the number of gadgets.
+
+\subsection{Utility Metric}
+
+While reducing the number of gadgets used reduces the time it takes to find a satisfiable payload, if it exists, it can still take up a considerable time when searching for longer ROP payload with a length bigger than 10. We needed a way of telling the SMT Solver which gadgets would be preferable to use over others. To implement this behavior of favoring certain gadgets I introduced an utility metric. The concept behind it is simple, always favor the gadgets with minimal side effects and use those when possible. Each gadget gets assigned an utility value based on how many side effects it contains, clobbering registers is considered the most severe one, while clobbering flags or memory accesses are considered less severe.
+
+
+The utility metric optimization can however have a negative aspect if certain constraints are not set in place. Since a gadget can be reused for an unlimited number of times, it may reuse the same ones, neglecting other gadgets with lower utility metric that might lead to a solution.

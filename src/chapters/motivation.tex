@@ -1,0 +1,82 @@
+\chapter{Motivation and Objectives}
+\label{chapter:motivation}
+
+\section{Motivation}
+\label{sec:motiv}
+
+Due to the high potential of this method and complex mechanisms a proper user-friendly tool is needed. This will aid in the otherwise tedious process of manually creating a ROP attack, while also providing full customization of the end result.
+
+Currently, to our knowledge, no such tool exists. The ones that do exist do not provide full customization of the end result or are difficult to use and require specific knowledge for the method or use case in question.
+
+\subsection{Complexity of Mounting an Attack}
+
+Firstly, the process of searching for gadgets and deciding which ones to use in particular can be a difficult and error-prone process even for the experienced user. Depending on the desired outcome of the attack the use of a specific gadget can have dire consequences on the overall state of the attack, mostly because gadgets tend to have side effects.
+
+Usually gadgets incorporate more than the useful instruction(s) we would like to use, thus clobbering other registers in the process. This can be at times unavoidable and it is imperative that the user takes the side effects into account, as they can divert the control flow from the desired course, forcing the user to introduce additional gadgets just for correction.
+
+\labelindexref{Table}{table:sideEffects} illustrates a few examples of gadgets with their semantic interpretation and side effects. We can see for example that a gadget such as \textit{add eax, 0x2; mov ebx, ecx; ret;} can be either used for incrementing eax with 0x2 which would clobber the ebx register or it could be used to move ecx in ebx, thus clobbering the eax registers. This shows how most of the time we use a gadget only for a subset of its instructions with the price of its side effects.
+
+\begin{table}
+	\begin{center}
+	\begin{tabular}{llr}
+	\toprule
+	\textbf{Gadget} & \textbf{Semantic Interpretation} & \textbf{Clobbered Registers} \\
+	\midrule
+	\shortstack[l]{mov al, bl \\ ret} & al $\leftarrow$ bl & eax \\
+	\midrule
+	\shortstack[l]{add eax, 0x2 \\ mov ebx, ecx \\ ret} & eax $\leftarrow$ eax + 2 & ebx \\
+	\midrule
+	\shortstack[l]{add eax, 0x2 \\ mov ebx, ecx \\ ret} & ebx $\leftarrow$ ecx & eax \\
+	\midrule
+	\shortstack[l]{pop ebp \\ pop edx \\ ret} & ebp $\leftarrow$ MEM[esp] & esp, edx \\
+	\midrule
+	\shortstack[l]{pop ebp \\ pop edx \\ ret} & edx $\leftarrow$ MEM[esp + 0x4] & esp, ebp \\
+	\bottomrule
+	\end{tabular}
+	\caption{Gadget Side Effects}
+	\label{table:sideEffects}
+	\end{center}
+\end{table}
+
+Ideally each gadget should be classified by their effects on the overall state of the registers and memory. This would provide a significant boost in quality and speed for the creation of the payload.
+
+Secondly, it is required to have a deep understanding of assembly and the specific architecture on which the attack is based. The same ROP payload will not work for the same program compiled on a different architecture. For a different architecture the whole process will have to be redone from the beginning, taking into account the differences for the architecture and assembly language. This poses a major drawback with most tools since they are not architecture-independent.
+
+\subsection{Lack of Automated Tools}
+
+The process of mounting a ROP attack can be very tedious and time consuming as explained in the previous section. Currently there is a lack of tools which can aid in automating the classification, selection and generation of the final payload, while maintaining everything architecture-independent.
+
+\section{Objectives}
+\label{sec:objectives}
+
+The preceding section underlines the issues with the existing tools, or lack of them. Despite the existence of some projects which aid in the creation of a ROP attack there is a need for full-fledged architecture-independent solution.
+
+This project aims to fill the need for a dedicated solution by providing the following functionality:
+\abbrev{ESIL}{Evaluable String Intermediate Language}
+\abbrev{IR}{Intermediate Representation}
+\abbrev{SMT}{Satisfiability Modulo Theories}
+\abbrev{SDB}{String Data Base}
+\begin{itemize}
+	\item Architecture-independent Gadget Classification using ESIL\footnote{Evaluable String Intermediate Language, used as the IR for Radare2}
+	\item ESIL to SMTLib Format Parser
+	\item SMT Generated Payload
+\end{itemize}
+
+\subsection{Gadget Classification}
+
+Gadget Classification Module with the following functionality:
+\begin{itemize}
+	\item Assigns a type to each gadget
+	\item Separates effects and side effects
+	\item Provides semantic search for gadgets based on effects
+	\item Stores gadgets for fast retrieval in SDB\footnote{String Data Base, SDB represents the internal data base used by Radare2, \url{https://github.com/radare/sdb}}
+	\item Save/Load functionality for gadgets in SDB across different instances
+\end{itemize}
+
+\subsection{ESIL to SMTLib2 Format Parser}
+
+SMTLib2\footnote{\url{http://smtlib.cs.uiowa.edu/}} provides a rigorous standard for describing the input/output language for SMT solvers and its semantics. Providing a module for translating ESIL to SMTLib2 format ensures the flexibility to use any SMT solver which respects the standard.
+
+\subsection{SMT Generated Payload}
+
+For the final ROP payload an SMT solver is used to create it. Having the gadgets translated into SMTLib format the SMT solver requires an end-state formula for which to check the satisfiability. The end state formula represents the goal of the attack, and is provided by the user. Once the formula is satisfied the final module will generate a payload based on the gadgets used by the solver to satisfy the formula, thus facilitating the ROP attack.

@@ -1,0 +1,54 @@
+\chapter{Related Work}
+\label{chapter:relatedwork}
+
+Although there are several tools that provide a working proof of concept for ROP attacks, there is currently no tool which automates the ROP attack to its full Turing complete potential without additional effort. Those that come close require a great deal of user input or specific knowledge of the targeted program and architecture.
+
+\section{ROPgadget}
+
+A de facto tool which automates the process by locating gadgets and constructing a ROP attack against a
+binary is ROPgadget\cite{salwan2011ropgadget}. Currently this tool supports different formats such as ELF/PE/Mach-O on different architectures x86, ARM, MIPS etc.
+
+It's main advantage consists in its simplicity, the user only has to feed the executable and it will generate a Python code for the payload, if it finds the specific gadgets it needs.
+
+However it has a major drawback, it is limited in the sense that it will only generate payloads which spawn a shell. If the user wants to mount an attack with any other goal than spawning a shell this is not the tool to use. There is no method to customize the end result of the attack.
+
+To the best of my knowledge there is currently no full-fledged tool or framework which incorporates a fully customizable and intuitive tool for mounting a ROP attack without previous expertise and manual input.
+During my research for this project I learned of only one other project which implements something similar.
+
+\section{Q: Exploit Hardening Made Easy}
+
+In 2011, \textit{Schwartz, Avgerinos and Brumley} introduced for the first time in their paper\cite{schwartz2011q} the idea of semantically classifying a gadget based on it's effects rather than using the traditional approach of pattern matching. For example, rather than defining only patterns like \textit{mov r1, r2; ret;} as a move gadget, using a semantic classification we can find equivalent gadgets such as \textit{imul r1, r2, 1; ret;} which don't contain the mov instruction at all. This offers a significant improvement and helps overcome the situations when certain types of gadget functionality cannot be found using only pattern matching.
+
+\abbrev{ISA}{Instruction Set Architecture}
+
+The paper\cite{schwartz2011q} defines a new instruction set architecture consisting of 9 gadget types on which this project is based as well. Rather than using pattern matching or other similar techniques for classifying the gadgets, the meaning of each gadget type is specified using a postcondition which must be found true after executing it. The complete ISA with its semantic definition can be seen in \labelindexref{Table}{table:gadgetTypes}.
+
+\begin{table}
+	\begin{center}
+	\begin{tabular}{ll}
+	\toprule
+	Type & Semantic Definition \\
+	\midrule
+	NOP & No changes in registers or memory \\
+	Jump & EIP $\leftarrow$ Address + Offset \\
+	MoveReg & OutReg $\leftarrow$ InReg \\
+	LoadCOnst & OutReg $\leftarrow$ Value \\
+	Arithmetic & OutReg $\leftarrow$ InReg1 <op> InReg2 \\
+	ArithmeticConst & OutReg $\leftarrow$ InReg1 <op> Value \\
+	LoadMem & OutReg $\leftarrow $[AddrReg + Offset] \\
+	StoreMem & [AddrReg + Offset] $\leftarrow$ InReg \\
+	ArithmeticLoad & OutReg $\leftarrow$ OutReg <op> [AddrReg + Offset] \\
+	ArithmeticStore & [AddrReg + Offset] $\leftarrow$ [AddrReg + Offset] <op> InReg \\
+	\bottomrule
+	\end{tabular}
+	\caption{Gadget Types}
+	\label{table:gadgetTypes}
+	\end{center}
+\end{table}
+
+
+\section{BARF}
+
+BARF\cite{heitman2014barf} is a Python package ``Binary Analysis and Reverse Engineering Framework'' which supports only a few features compared to Radare2 or IDA\footnote{\url{https://www.hex-rays.com/products/ida/}}. The framework currently supports only a subset of the x86 and ARM instruction set, discarding any instruction which is not supported.
+
+Among other tools, it contains BARFgadgets: a tool for classifying and verifying ROP gadgets inside a binary using SMT solvers. In the initial phases it searches for all gadgets ending in a: ret, jmp or call instruction. The next phases classifies the gadgets into predetermined types, followed by a verification phase which uses an SMT solver to verify the semantic of each gadget.

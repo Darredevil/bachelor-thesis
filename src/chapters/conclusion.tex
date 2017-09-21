@@ -1,0 +1,58 @@
+\chapter{Conclusions and Further Work}
+\label{chapter:conclusion}
+
+In this thesis I presented a new tool to aid and automate the construction of ROP-based payloads. Based on the Radare2 Framework I introduced four new modules, each with distinct features, into the framework. The current implementation status has met the objectives proposed in \labelindexref{Chapter}{sec:objectives}. However testing and feedback revealed that there issues which need to be addressed before the project can be fully integrated in the next stable release of the framework.
+
+The following sections present the current implementation status as well as new aspects and features which need to be addressed in further work on the project.
+
+\section{Current Status}
+
+The tool can be run on any platform / architecture that supports Radare2 and provides the following features:
+
+\begin{itemize}
+	\item Semantic classification for gadgets
+	\item Translation from ESIL to the SMTLib2 standard
+	\item Automatic payload generation using a SMTLib2 compliant SMT Solver
+	\item Separate caching and querying functionality for each module for fast lookup in SDB
+	\item Save / Load functionality for the results across different instances
+\end{itemize}
+
+Currently the Gadget Classification module is already present in the latest release of Radare2\footnote{\url{https://github.com/radare/radare2/releases/tag/0.10.5}}.
+
+The SMTLib2 Parser and Payload Generation module require more testing and validation for complex binaries before being integrated with the next release.
+
+% The modules provide semantic classification for gadgets, translation from ESIL to the SMTLib2 standard, automatic payload generation, separate caching functionality for each module for fast lookup in SDB and save / load functionality for the results across different instances.
+
+\section{Further Work}
+
+Further work will focus on fixing the main issues discovered from testing and feedback. Afterward independent features and improvement will be considered. The following subsections detail the issues and improvements discovered from feedback.
+
+\subsection{Improve Performance}
+
+As mentioned in \labelindexref{Section}{sec:issues} there is a significant time slot currently spent in the searching, classification of gadgets and payload generation. This requires further investigation and optimization in order to make the tool viable for use on large, real-life binaries.
+
+\subsection{Large Scale Testing}
+
+Afterwards large scale testing is required to thoroughly analyze the behavior and validate the tool in different environments and on a large variety of binaries. For this task we suggest validating the classification and translation phase on the executable present in the \textit{/bin} directory for the major Linux distributions (Ubuntu, Debian, Fedora, RedHat, etc.) on both 32 and 64 bit architectures, as well as on Windows.
+
+\abbrev{CTF}{Capture The Flag}
+For an end-to-end test we propose using different write-ups\footnote{Example of write-ups which can be found online \url{https://github.com/ctfs/}} of Capture The Flag (CTF) competitions which can be found online. These provide an ideal environment for testing as we can cross for example the solution obtained by our tool for a ROP attack with the solution proposed by the write-up and compare both functionality and efficiency.
+
+\subsection{Cross Platform Testing}
+
+Due to the fact that the classification modules uses an intermediate representation language, ESIL, as input, the whole architecture independent attribute of the tool is guarantied by the Radare2 Framework itself.
+
+However a test suite for different architectures is required to validate this. Currently the vast majority of tests are only on Intel's x86 and x86_64 architectures.
+
+\subsection{Graphical User Interface}
+
+At present the tool is accessible only through a Command Line Interface, in the same spirit with Radare's CLI approach. However this adds to the already difficult learning curve the framework presents.
+
+Taking into account the feedback already received from the community a Graphical User Interface will be a main topic for future development.
+
+\subsection{Constraint Generation Manager}
+
+Another key item which kept coming up in the feedback is the current way of setting the target end state for the payload generator. At the moment the user is required to encode the final target state as a sequence of formulas for the SMT Solver which represent the constraints (register's and memory state) which need to be satisfied by the payload.
+
+A simple, intuitive manager for generating these constraints based on a natural language is required. The user should be allowed for example to specify for the end state that he wishes to spawn a shell or a certain executable to be called with a specific argument. The constraint manager will generate the SMT formula equivalent for this and pass it to the Payload Generation module. This represents an important aspect for further development.
+

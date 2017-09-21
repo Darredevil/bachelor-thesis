@@ -1,0 +1,25 @@
+\chapter{Introduction}
+\label{chapter:intro}
+
+\section{Project Description}
+\label{sec:proj}
+
+\abbrev{ROP}{Return Oriented Programming}
+\abbrev{W\textasciicircum X}{Write xor Execute}
+\abbrev{DEP}{Data Execution Prevention}
+\abbrev{ret2libc}{Return to libc}
+
+
+Since it was first introduced in 2007, Return Oriented Programming\cite{shacham2007rop} (and derived techniques) proved to be a powerful technique that allows the hijacking of an executable control flow even in the presence of modern defenses such as Data Execution Prevention, which are present on modern architectures. It can be seen as a generalization of the return-into-libc attack, which instead of calling functions relies on short instruction sequences, called gadgets, to allow arbitrary computation. This in turn creates a resilient technique immune to defense mechanisms such as removing certain functions from libc or changing the assembler code generation process.
+
+\section{Project Motivation}
+
+The process of hijacking using ROP consists of building a hand-crafted payload that chains together several gadgets in order to overwrite and hijack the control flow of the executable program with a specific goal in mind. The user has to determine which gadgets to use and chain them together while keeping in mind how these may affect the overall state of the program. However this can be a tedious and error-prone process.
+
+\section{Project Objectives}
+
+In this paper I introduce a new intuitive tool with the objective to aid and automate the classification of gadgets, selection and creation of the final ROP payload which the user can later feed to the executable. I decided to build and integrate this tool directly with an already existing open-source reverse engineering framework, Radare2.
+
+Radare2 was the ideal choice since it is a mature framework with an impressive set of tools and features, among these we can count its own custom intermediate language representation as well as its internal virtual machine used for emulation. These represent the basic building blocks on which this project will be based.
+
+In the following chapters I will present the basic concepts and techniques used for ROP as well as an overall presentation of the Radare2 framework and how my project integrates with it.
